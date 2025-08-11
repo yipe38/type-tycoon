@@ -112,8 +112,6 @@ let startedAt = 0;       // performance.now()
 let tick = null;         // deduction timer
 let lastWpm = 0;
 
-boot();
-
 function boot(){
   renderChallenges();
   renderStats();
@@ -155,7 +153,6 @@ function deductTick(){
 
 function onInput(){
   const val = el.input.value;
-  // Zeichenweise prüfen
   for (let i=0;i<current.text.length;i++){
     const exp = current.text[i];
     const got = val[i] ?? null;
@@ -165,7 +162,6 @@ function onInput(){
   }
   renderTarget(current.text, val);
 
-  // fertig?
   if (val === current.text) {
     clearInterval(tick);
     const elapsed = (performance.now()-startedAt)/1000;
@@ -190,7 +186,6 @@ function renderTarget(targetText, _typed){
     out.push(`<span class="${cls}">${exp===' ' ? '&nbsp;' : esc(exp)}</span>`);
   }
   el.target.innerHTML = out.join('');
-  // live HUD (Accuracy)
   updateHUD();
 }
 
@@ -204,10 +199,8 @@ function scoreSentence(text, elapsedS){
   const hadErr = typedHistory.some(s=>s==='err' || s==='fixed');
   const perfect = !hadErr;
 
-  // WPM (standard: 5 chars = 1 Wort)
   lastWpm = Math.round((chars/5) / (elapsedS/60));
 
-  // Serie / Multiplikator
   if (perfect) S.streak++;
   else S.streak = S.antiTilt ? Math.max(0, S.streak-1) : 0;
 
@@ -219,7 +212,6 @@ function scoreSentence(text, elapsedS){
   S.points += gained;
   S.xp     += Math.floor(gained/2);
 
-  // Level-Up
   while (S.xp >= needXP(S.level)) {
     S.xp -= needXP(S.level);
     S.level++;
@@ -307,7 +299,6 @@ function buyUpgrade(id){
   if (S.points<price || S.level<(u.gate||1)) return;
   S.points -= price; S.upgrades[id]=(lvl+1);
 
-  // Effekte
   if (id==='basePointsPlus') S.basePointsAdd += 2;
   if (id==='multCapPlus')   S.multCap = Math.min(1.0, S.multCap+0.05);
   if (id==='gracePlus')     S.grace = Math.min(10, S.grace+0.5);
@@ -361,3 +352,6 @@ function renderSetupView(){
 
 /* === Helper: Persist === */
 function save(){ localStorage.setItem(KEY, JSON.stringify(S)); }
+
+/* --- App starten, nachdem alles definiert ist --- */
+boot();
