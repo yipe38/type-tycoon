@@ -7,18 +7,21 @@ export const S = {
   xp: 0,
   level: 1,
   streak: 0,
-  multCap: 0.50,      // 50% Start-Cap
-  grace: 6,           // Sekunden bis Abzug startet
-  speedFactor: 4,     // Geschwindigkeitsbonus-Faktor
-  basePointsAdd: 0,   // Upgrade-Effekt
-  antiTilt: false,    // Upgrade-Effekt
-  upgrades: {},       // id -> level
-  owned: {},          // setup item id -> true  (auch: ch_* für Challenges)
+  multCap: 0.50,
+  grace: 6,
+  speedFactor: 4,
+  basePointsAdd: 0,
+  antiTilt: false,
+  upgrades: {},
+  owned: {},
+  activeChalls: [],   // 👈 HIER einfügen
   lastSentenceId: null,
   stats: { total:0, bestStreak:0, fastestS:null, timePlayedS:0 }
 };
 
 try { Object.assign(S, JSON.parse(localStorage.getItem(KEY) || '{}')); } catch {}
+if (!Array.isArray(S.activeChalls)) S.activeChalls = [];
+save();
 
 export function save(){ localStorage.setItem(KEY, JSON.stringify(S)); }
 export function reset(){ localStorage.removeItem(KEY); location.reload(); }
