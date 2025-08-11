@@ -1,6 +1,6 @@
 /* Zeichenstatus fürs Tippen */
 .ty { transition: color .06s ease, text-shadow .06s ease; }
-.ty.pending { color:#a3a3a3; }                 /* unge tippt (hellgrau) */
+.ty.pending { color:#a3a3a3; }                 /* ungetippt (hellgrau) */
 .ty.ok { color:#22c55e; }                      /* korrekt (grün) */
 .ty.err { color:#ef4444; text-shadow:0 0 6px rgba(239,68,68,.7); } /* falsch (rot + Glow) */
 .ty.fixed { color:#fb923c; }                   /* korrigiert (orange) */
@@ -40,3 +40,14 @@
 .item.basic{ background:linear-gradient(180deg,#525252,#3f3f3f); }
 .item.pro{   background:linear-gradient(180deg,#22c55e,#16a34a); }
 .item.elite{ background:linear-gradient(180deg,#f59e0b,#d97706); }
+
+/* Toast */
+.toast {
+  position: fixed; right: 1rem; bottom: 1rem; z-index: 50;
+  background: #14532d; color: #ecfdf5;
+  padding: .6rem .8rem; border-radius: .75rem; font-size: .9rem;
+  box-shadow: 0 8px 24px rgba(0,0,0,.35);
+  opacity: 0; transform: translateY(8px);
+  transition: opacity .2s ease, transform .2s ease;
+}
+.toast.show { opacity: 1; transform: translateY(0); }
