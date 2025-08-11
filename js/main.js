@@ -1,117 +1,45 @@
-/* === Save/State === */
-const KEY = 'tt_setup_save_v1';
-const S = {
-  version: 1,
-  points: 0,
-  xp: 0,
-  level: 1,
-  streak: 0,
-  multCap: 0.50,           // 50% Start-Cap
-  grace: 6,                // Sekunden bis Abzug startet
-  speedFactor: 4,          // Geschwindigkeitsbonus-Faktor
-  basePointsAdd: 0,        // durch Upgrade
-  antiTilt: false,         // Upgrade
-  upgrades: {},            // id -> level
-  owned: {},               // setup item id -> true  (auch: ch_* für Challenges)
-  lastSentenceId: null,
-  stats: { total:0, bestStreak:0, fastestS:null, timePlayedS:0 }
-};
-try { Object.assign(S, JSON.parse(localStorage.getItem(KEY) || '{}')); } catch {}
-save();
+import { S, save, reset, UPGRADES, ITEMS, synergyBonus, needXP } from './state.js';
+import { pickSentence } from './sentences.js';
 
-/* === Data: Sätze (Tiers 1–3; erweiterbar) === */
-const TIERS = {
-  1: [
-    "Heute ist ein guter Tag.",
-    "Bitte speichere regelmäßig.",
-    "Tippen macht Spaß und schnell.",
-    "Der Kaffee steht bereit.",
-    "Ich liebe kurze Sätze.",
-    "Linux oder Windows, Hauptsache läuft.",
-    "Die Lampe leuchtet warm.",
-    "Das ist nur ein Test.",
-    "Kurze Pause hilft oft.",
-    "Dieser Satz ist simpel."
-  ],
-  2: [
-    "Manchmal sorgt ein tiefer Atemzug für Klarheit im Kopf.",
-    "Der Schreibtisch war anfangs leer, doch bald wächst das Setup.",
-    "Ein konzentrierter Flow entsteht, wenn Benachrichtigungen aus sind.",
-    "Die Tastatur klackt, während Gedanken Form annehmen.",
-    "Wer tippt, gewinnt an Tempo und Präzision.",
-    "Mit Routine wird aus Anstrengung mühelose Bewegung."
-  ],
-  3: [
-    "Mit steigender Stufe erscheinen längere Sätze mit Kommas, Zahlen 123 und kleinen Stolpersteinen.",
-    "Konsequentes Üben führt zu messbaren Fortschritten, selbst wenn es anfangs zäh wirkt.",
-    "Wer Fehler sofort korrigiert, baut eine stabile Serie auf und hält den Multiplikator oben."
-  ]
-};
-function chooseTier(level){ return level>=8?3:level>=4?2:1; }
-function pickSentence(level, lastId){
-  const tier = chooseTier(level);
-  const pool = TIERS[tier];
-  let idx;
-  do { idx = Math.floor(Math.random()*pool.length); } while(`${tier}-${idx}`===lastId && pool.length>1);
-  return { id:`${tier}-${idx}`, text: pool[idx], tier };
-}
-
-/* === Data: Upgrades === */
-const UPGRADES = [
-  { id:'basePointsPlus', name:'Basispunkte+', desc:'Mehr Basispunkte pro Satz.', base:100, growth:1.35 },
-  { id:'multCapPlus',    name:'Multiplikator-Cap+', desc:'Erhöht das Maximum des Serien-Multiplikators.', base:150, growth:1.40, gate:3 },
-  { id:'gracePlus',      name:'Grace-Zeit+', desc:'Mehr Zeit bis Punktabzug startet.', base:120, growth:1.35 },
-  { id:'speedBonusPlus', name:'Speed-Bonus+', desc:'Stärkerer Geschwindigkeitsbonus.', base:180, growth:1.45, gate:4 },
-  { id:'antiTilt',       name:'Anti-Tilt', desc:'Fehlersatz senkt Serie nur um 1 Stufe (einmalig).', base:250, growth:2.0, gate:5, max:1 }
-];
-
-/* === Data: Setup-Items (feste Slots; mit einfachen Set-Boni) === */
-const ITEMS = [
-  { id:'mon_basic',   name:'Monitor (Basic)',   slot:'monitor',  rarity:'basic', price:200, gate:1, sets:['gamer'] },
-  { id:'kbd_mech',    name:'Mechanische Tastatur', slot:'keyboard', rarity:'pro',   price:220, gate:3, sets:['gamer'] },
-  { id:'mouse_pro',   name:'Maus (Pro)',        slot:'mouse',    rarity:'pro',   price:150, gate:2, sets:['gamer'] },
-  { id:'lamp_warm',   name:'Schreibtischlampe', slot:'lamp',     rarity:'basic', price:120, gate:2, sets:['focus'] },
-  { id:'pc_tower',    name:'PC Tower',          slot:'pc',       rarity:'pro',   price:300, gate:4, sets:['gamer'] },
-  { id:'plant_small', name:'Pflanze',           slot:'plant',    rarity:'basic', price:90,  gate:1, sets:['focus'] },
-  { id:'poster_grid', name:'Poster',            slot:'poster',   rarity:'basic', price:80,  gate:1, sets:['focus'] }
-];
-function synergyBonus(){
-  const has = id => !!S.owned[id];
-  const gamer = has('mon_basic') && has('kbd_mech') && has('mouse_pro') && has('pc_tower');
-  const focus = has('lamp_warm') && has('plant_small') && has('poster_grid');
-  let bonus = 0;
-  if (gamer) bonus += 0.05;
-  if (focus) bonus += 0.05;
-  return bonus; // 0..0.10
-}
-
-/* === DOM Refs === */
+/* === DOM === */
 const el = {
-  target: qs('#target'),
-  input: qs('#input'),
-  wpm: qs('#hud-wpm'),
-  acc: qs('#hud-acc'),
-  streak: qs('#hud-streak'),
-  mult: qs('#hud-mult'),
-  pts: qs('#hud-pts'),
-  lvl: qs('#hud-level'),
-  shop: qs('#shop'),
-  tabUp: qs('#tab-upgrades'),
-  tabSet: qs('#tab-setup'),
-  stats: qs('#stats'),
-  chall: qs('#challenges'),
-  setup: qs('#setupView'),
-  reset: qs('#resetBtn'),
+  target: q('#target'),
+  input: q('#input'),
+  wpm: q('#hud-wpm'),
+  acc: q('#hud-acc'),
+  streak: q('#hud-streak'),
+  mult: q('#hud-mult'),
+  pts: q('#hud-pts'),
+  lvl: q('#hud-level'),
+  shop: q('#shop'),
+  tabUp: q('#tab-upgrades'),
+  tabSet: q('#tab-setup'),
+  stats: q('#stats'),
+  chall: q('#challenges'),
+  setup: q('#setupView'),
+  reset: q('#resetBtn'),
 };
-function qs(s){ return document.querySelector(s); }
+function q(s){ return document.querySelector(s); }
+function esc(s){ return s.replace(/[&<>"']/g, m=>({ '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;' }[m])); }
 
-/* === Typing Engine === */
+/* === Engine-Variablen === */
 let current = null;
-let typedHistory = [];   // 'ok' | 'err' | 'fixed' | undefined
-let startedAt = 0;       // performance.now()
-let tick = null;         // deduction timer
+let typedHistory = [];     // 'ok' | 'err' | 'fixed' | undefined
+let startedAt = 0;
+let tick = null;
 let lastWpm = 0;
+let penalty = 0;           // ⬅️ Satzbezogene Zeitstrafe (Drop nur vom Gewinn)
 
+/* === Challenges === */
+const CHALL = [
+  { id:'first',    name:'Erster Satz',   need:1,  reward:50,  check:()=>S.stats.total>=1 },
+  { id:'warmup',   name:'Warm-up (10)',  need:10, reward:100, check:()=>S.stats.total>=10 },
+  { id:'perfect3', name:'Fehlerfrei ×3', need:3,  reward:150, check:()=>S.streak>=3 },
+  { id:'marathon', name:'100 Sätze',     need:100,reward:500, check:()=>S.stats.total>=100 }
+];
+
+/* === Boot === */
+boot();
 function boot(){
   renderChallenges();
   renderStats();
@@ -121,37 +49,31 @@ function boot(){
   renderSetupView();
 }
 
+/* === UI Bindings === */
 function bindUI(){
   el.input.addEventListener('input', onInput);
   el.tabUp.addEventListener('click', renderShopUpgrades);
   el.tabSet.addEventListener('click', renderShopSetup);
-  el.reset.addEventListener('click', ()=>{
-    if (confirm('Speicherstand wirklich löschen?')) { localStorage.removeItem(KEY); location.reload(); }
-  });
+  el.reset.addEventListener('click', ()=>{ if (confirm('Speicherstand wirklich löschen?')) reset(); });
 }
 
+/* === Engine === */
 function nextSentence(initial=false){
   current = pickSentence(S.level, S.lastSentenceId);
   S.lastSentenceId = current.id;
+  penalty = 0;                                // reset satzbezogene Strafe
   typedHistory = new Array(current.text.length);
-  renderTarget(current.text, "");
+  renderTarget(current.text);
   el.input.value = "";
-  startedAt = performance.now();
+  startedAt = 0;                               // Timer startet erst beim Tippen
   clearInterval(tick);
   tick = setInterval(()=>deductTick(), 250);
   if (!initial) save();
 }
 
-function deductTick(){
-  const elapsed = (performance.now()-startedAt)/1000;
-  if (elapsed > S.grace) {
-    S.points = Math.max(0, S.points - 0.5); // -2/s
-    updateHUD();
-    save();
-  }
-}
-
 function onInput(){
+  if (!startedAt) startedAt = performance.now(); // ⬅️ Start erst beim ersten Input
+
   const val = el.input.value;
   for (let i=0;i<current.text.length;i++){
     const exp = current.text[i];
@@ -160,7 +82,7 @@ function onInput(){
     else if (got === exp) typedHistory[i] = (typedHistory[i]==='err') ? 'fixed' : 'ok';
     else typedHistory[i] = 'err';
   }
-  renderTarget(current.text, val);
+  renderTarget(current.text);
 
   if (val === current.text) {
     clearInterval(tick);
@@ -168,13 +90,22 @@ function onInput(){
     scoreSentence(current.text, elapsed);
     S.stats.total++;
     if (S.streak > S.stats.bestStreak) S.stats.bestStreak = S.streak;
-    renderStats();
-    save();
+    renderStats(); save();
     nextSentence();
   }
 }
 
-function renderTarget(targetText, _typed){
+function deductTick(){
+  if (!startedAt) return;
+  const elapsed = (performance.now()-startedAt)/1000;
+  if (elapsed > S.grace) {
+    penalty += 0.5;            // -2/s (4 Ticks * 0.5), nur auf Satzgewinn
+    save();
+  }
+}
+
+/* === Rendering === */
+function renderTarget(targetText){
   const out = [];
   for (let i=0;i<targetText.length;i++){
     const exp = targetText[i];
@@ -189,9 +120,29 @@ function renderTarget(targetText, _typed){
   updateHUD();
 }
 
-function esc(s){ return s.replace(/[&<>"']/g, m=>({ '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;' }[m])); }
+function updateHUD(afterScore=false){
+  const total = el.target.querySelectorAll('.ty').length;
+  const oks   = el.target.querySelectorAll('.ty.ok').length;
+  const acc = total ? Math.round((oks/total)*100) : 100;
+  const multNow = 1 + Math.min(S.streak*0.05, S.multCap) + synergyBonus();
+  el.wpm.textContent   = `WPM: ${afterScore ? lastWpm : 0}`;
+  el.acc.textContent   = `Accuracy: ${acc}%`;
+  el.streak.textContent= `Serie: ${S.streak}`;
+  el.mult.textContent  = `Multiplikator: ${multNow.toFixed(2)}×`;
+  el.pts.textContent   = `Punkte: ${Math.floor(S.points)}`;
+  el.lvl.textContent   = `Level: ${S.level}`;
+}
 
-/* === Scoring / Progression === */
+function renderStats(){
+  const need = needXP(S.level);
+  el.stats.innerHTML = `
+    <div>Gesamt-Sätze: ${S.stats.total}</div>
+    <div>Beste Serie: ${S.stats.bestStreak}</div>
+    <div>XP: ${S.xp} / ${need}</div>
+  `;
+}
+
+/* === Scoring === */
 function scoreSentence(text, elapsedS){
   const chars = [...text].length;
   const base = 0.6 * chars + 4 + S.basePointsAdd;
@@ -207,7 +158,8 @@ function scoreSentence(text, elapsedS){
   const mult = 1 + Math.min(S.streak*0.05, S.multCap) + synergyBonus();
 
   let gained = (base + speedBonus + (perfect?10:0)) * mult;
-  gained = Math.max(0, Math.round(gained));
+  gained = Math.max(0, Math.round(gained - penalty)); // ⬅️ Strafe nur vom Gewinn
+  penalty = 0;
 
   S.points += gained;
   S.xp     += Math.floor(gained/2);
@@ -219,29 +171,7 @@ function scoreSentence(text, elapsedS){
   updateHUD(true);
 }
 
-function needXP(level){ return 100 + (level-1)*60; }
-
-function updateHUD(afterScore=false){
-  const total = el.target.querySelectorAll('.ty').length;
-  const oks   = el.target.querySelectorAll('.ty.ok').length;
-  const acc = total ? Math.round((oks/total)*100) : 100;
-  const multNow = 1 + Math.min(S.streak*0.05, S.multCap) + synergyBonus();
-  el.wpm.textContent   = `WPM: ${afterScore ? lastWpm : 0}`;
-  el.acc.textContent   = `Accuracy: ${acc}%`;
-  el.streak.textContent= `Serie: ${S.streak}`;
-  el.mult.textContent  = `Multiplikator: ${multNow.toFixed(2)}×`;
-  el.pts.textContent   = `Punkte: ${Math.floor(S.points)}`;
-  el.lvl.textContent   = `Level: ${S.level}`;
-}
-
-/* === Challenges (simple) === */
-const CHALL = [
-  { id:'first',    name:'Erster Satz',   need:1,  reward:50,  check:()=>S.stats.total>=1 },
-  { id:'warmup',   name:'Warm-up (10)',  need:10, reward:100, check:()=>S.stats.total>=10 },
-  { id:'perfect3', name:'Fehlerfrei ×3', need:3,  reward:150, check:()=>S.streak>=3 },
-  { id:'marathon', name:'100 Sätze',     need:100,reward:500, check:()=>S.stats.total>=100 }
-];
-
+/* === Challenges === */
 function renderChallenges(){
   el.chall.innerHTML = CHALL.map(c=>{
     const done = S.owned[`ch_${c.id}`];
@@ -256,22 +186,13 @@ function renderChallenges(){
       const id=b.dataset.c, c=CHALL.find(x=>x.id===id);
       if (c && c.check() && !S.owned[`ch_${id}`]) {
         S.points += c.reward; S.owned[`ch_${id}`]=true; save(); renderChallenges(); updateHUD();
+        toast(`Challenge: +${c.reward} Punkte`);
       }
     });
   });
 }
 
-/* === Stats === */
-function renderStats(){
-  const need = needXP(S.level);
-  el.stats.innerHTML = `
-    <div>Gesamt-Sätze: ${S.stats.total}</div>
-    <div>Beste Serie: ${S.stats.bestStreak}</div>
-    <div>XP: ${S.xp} / ${need}</div>
-  `;
-}
-
-/* === Shop: Upgrades === */
+/* === Shop === */
 function renderShopUpgrades(){
   const html = UPGRADES.map(u=>{
     const lvl = S.upgrades[u.id]||0;
@@ -308,9 +229,9 @@ function buyUpgrade(id){
   if (id==='antiTilt')      S.antiTilt = true;
 
   save(); renderShopUpgrades(); updateHUD();
+  toast(`Upgrade gekauft: ${u.name}`);
 }
 
-/* === Shop: Setup === */
 function renderShopSetup(){
   const html = ITEMS.map(it=>{
     const owned = !!S.owned[it.id];
@@ -336,24 +257,26 @@ function buyItem(id){
   if (S.owned[id]) return;
   if (S.points<it.price || S.level<(it.gate||1)) return;
   S.points -= it.price; S.owned[id]=true; save();
-  renderShopSetup();
-  renderSetupView();
-  updateHUD();
+  renderShopSetup(); renderSetupView(); updateHUD();
+  toast(`Item gekauft: ${it.name}`);
 }
 
-/* === Setup Render === */
+/* === Setup-Ansicht === */
 function renderSetupView(){
   document.querySelectorAll('#setupView .slot').forEach(s=>s.innerHTML='');
   for (const it of ITEMS){
     if (S.owned[it.id]){
-      const slot = qs('#slot-'+it.slot); if(!slot) continue;
+      const slot = q('#slot-'+it.slot); if(!slot) continue;
       slot.innerHTML = `<div class="item ${it.rarity}">${it.name}</div>`;
     }
   }
 }
 
-/* === Helper: Persist === */
-function save(){ localStorage.setItem(KEY, JSON.stringify(S)); }
-
-/* --- App starten, nachdem alles definiert ist --- */
-boot();
+/* === Toast === */
+function toast(msg){
+  const t = document.createElement('div');
+  t.className = 'toast'; t.textContent = msg;
+  document.body.appendChild(t);
+  requestAnimationFrame(()=> t.classList.add('show'));
+  setTimeout(()=>{ t.classList.remove('show'); setTimeout(()=>t.remove(), 250); }, 1500);
+}
