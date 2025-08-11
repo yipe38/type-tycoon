@@ -236,10 +236,12 @@ function updateHUD(afterScore=false){
 
 /* === Challenges (simple) === */
 const CHALL = [
-  { id:'warmup',   name:'Warm-up',    need:10,  reward:100, check:()=>S.stats.total>=10 },
-  { id:'perfect3', name:'Fehlerfrei ×3', need:3, reward:150, check:()=>S.streak>=3 },
-  { id:'marathon', name:'100 Sätze',  need:100, reward:500, check:()=>S.stats.total>=100 }
+  { id:'first',    name:'Erster Satz',   need:1,  reward:50,  check:()=>S.stats.total>=1 },
+  { id:'warmup',   name:'Warm-up (10)',  need:10, reward:100, check:()=>S.stats.total>=10 },
+  { id:'perfect3', name:'Fehlerfrei ×3', need:3,  reward:150, check:()=>S.streak>=3 },
+  { id:'marathon', name:'100 Sätze',     need:100,reward:500, check:()=>S.stats.total>=100 }
 ];
+
 function renderChallenges(){
   el.chall.innerHTML = CHALL.map(c=>{
     const done = S.owned[`ch_${c.id}`];
