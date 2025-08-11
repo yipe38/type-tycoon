@@ -28,15 +28,62 @@ let typedHistory = [];     // 'ok' | 'err' | 'fixed' | undefined
 let startedAt = 0;
 let tick = null;
 let lastWpm = 0;
-let penalty = 0;           // ⬅️ Satzbezogene Zeitstrafe (Drop nur vom Gewinn)
+let penalty = 0;           // Satzbezogene Zeitstrafe (nur vom Gewinn)
 
-/* === Challenges === */
-const CHALL = [
-  { id:'first',    name:'Erster Satz',   need:1,  reward:50,  check:()=>S.stats.total>=1 },
-  { id:'warmup',   name:'Warm-up (10)',  need:10, reward:100, check:()=>S.stats.total>=10 },
-  { id:'perfect3', name:'Fehlerfrei ×3', need:3,  reward:150, check:()=>S.streak>=3 },
-  { id:'marathon', name:'100 Sätze',     need:100,reward:500, check:()=>S.stats.total>=100 }
+/* === Challenges (rotating) === */
+const CHALL_POOL = [
+  { id:'first',    name:'Erster Satz',     reward:50,  check:()=>S.stats.total>=1 },
+  { id:'warmup10', name:'Warm-up (10)',    reward:100, check:()=>S.stats.total>=10 },
+  { id:'perfect3', name:'Fehlerfrei ×3',   reward:150, check:()=>S.stats.bestStreak>=3 },
+  { id:'streak5',  name:'Serie ×5',        reward:200, check:()=>S.stats.bestStreak>=5 },
+  { id:'level3',   name:'Level 3',         reward:120, check:()=>S.level>=3 },
+  { id:'level5',   name:'Level 5',         reward:180, check:()=>S.level>=5 },
+  { id:'upgrade1', name:'Erstes Upgrade',  reward:80,  check:()=>Object.values(S.upgrades).some(l=>l>0) },
+  { id:'item1',    name:'Erstes Item',     reward:80,  check:()=>ITEMS.some(it=>S.owned[it.id]) }
 ];
+const MAX_ACTIVE_CHALLS = 3;
+
+function ensureActiveChalls(){
+  if (!Array.isArray(S.activeChalls)) S.activeChalls = [];
+  // erledigte raus
+  S.activeChalls = S.activeChalls.filter(id => !S.owned[`ch_${id}`]);
+  // auffüllen
+  const available = CHALL_POOL.filter(c => !S.owned[`ch_${c.id}`] && !S.activeChalls.includes(c.id));
+  while (S.activeChalls.length < MAX_ACTIVE_CHALLS && available.length) {
+    const i = Math.floor(Math.random()*available.length);
+    S.activeChalls.push(available[i].id);
+    available.splice(i,1);
+  }
+  save();
+}
+function activeChallenges(){ return CHALL_POOL.filter(c => S.activeChalls.includes(c.id)); }
+
+function renderChallenges(){
+  ensureActiveChalls();
+  const list = activeChallenges();
+  if (!list.length){
+    el.chall.innerHTML = `<li class="p-2 rounded bg-neutral-800">Alle Challenges erledigt 🎉</li>`;
+    return;
+  }
+  el.chall.innerHTML = list.map(c=>{
+    const can = c.check();
+    return `<li class="p-2 rounded bg-neutral-800 flex items-center justify-between">
+      <div><b>${c.name}</b><div class="opacity-70 text-xs">Belohnung: ${c.reward} Punkte</div></div>
+      <button data-c="${c.id}" ${can?'':'disabled'} class="px-3 py-1 rounded ${can?'bg-emerald-600':'bg-neutral-700'}">Einsammeln</button>
+    </li>`;
+  }).join('');
+  el.chall.querySelectorAll('button[data-c]').forEach(b=>{
+    b.addEventListener('click',()=>{
+      const id=b.dataset.c, c=CHALL_POOL.find(x=>x.id===id);
+      if (!c || !c.check()) return;
+      S.points += c.reward;
+      S.owned[`ch_${id}`] = true;                   // erledigt markieren
+      S.activeChalls = S.activeChalls.filter(x=>x!==id);
+      save(); updateHUD(); toast(`Challenge: +${c.reward} Punkte`);
+      renderChallenges();                           // neue nachrücken
+    });
+  });
+}
 
 /* === Boot === */
 boot();
@@ -61,7 +108,7 @@ function bindUI(){
 function nextSentence(initial=false){
   current = pickSentence(S.level, S.lastSentenceId);
   S.lastSentenceId = current.id;
-  penalty = 0;                                // reset satzbezogene Strafe
+  penalty = 0;                                // reset Strafe
   typedHistory = new Array(current.text.length);
   renderTarget(current.text);
   el.input.value = "";
@@ -72,7 +119,7 @@ function nextSentence(initial=false){
 }
 
 function onInput(){
-  if (!startedAt) startedAt = performance.now(); // ⬅️ Start erst beim ersten Input
+  if (!startedAt) startedAt = performance.now(); // Start bei erstem Input
 
   const val = el.input.value;
   for (let i=0;i<current.text.length;i++){
@@ -91,6 +138,7 @@ function onInput(){
     S.stats.total++;
     if (S.streak > S.stats.bestStreak) S.stats.bestStreak = S.streak;
     renderStats(); save();
+    renderChallenges();           // ⬅️ nach Abschluss refresh
     nextSentence();
   }
 }
@@ -99,7 +147,7 @@ function deductTick(){
   if (!startedAt) return;
   const elapsed = (performance.now()-startedAt)/1000;
   if (elapsed > S.grace) {
-    penalty += 0.5;            // -2/s (4 Ticks * 0.5), nur auf Satzgewinn
+    penalty += 0.5;               // -2/s (4 Ticks * 0.5), nur auf Satzgewinn
     save();
   }
 }
@@ -158,7 +206,7 @@ function scoreSentence(text, elapsedS){
   const mult = 1 + Math.min(S.streak*0.05, S.multCap) + synergyBonus();
 
   let gained = (base + speedBonus + (perfect?10:0)) * mult;
-  gained = Math.max(0, Math.round(gained - penalty)); // ⬅️ Strafe nur vom Gewinn
+  gained = Math.max(0, Math.round(gained - penalty)); // Strafe nur vom Gewinn
   penalty = 0;
 
   S.points += gained;
@@ -169,27 +217,6 @@ function scoreSentence(text, elapsedS){
     S.level++;
   }
   updateHUD(true);
-}
-
-/* === Challenges === */
-function renderChallenges(){
-  el.chall.innerHTML = CHALL.map(c=>{
-    const done = S.owned[`ch_${c.id}`];
-    const can = c.check() && !done;
-    return `<li class="p-2 rounded bg-neutral-800 flex items-center justify-between">
-      <div><b>${c.name}</b><div class="opacity-70 text-xs">Belohnung: ${c.reward} Punkte</div></div>
-      <button data-c="${c.id}" ${can?'':'disabled'} class="px-3 py-1 rounded ${can?'bg-emerald-600':'bg-neutral-700'}">${done?'Eingesammelt':'Einsammeln'}</button>
-    </li>`;
-  }).join('');
-  el.chall.querySelectorAll('button[data-c]').forEach(b=>{
-    b.addEventListener('click',()=>{
-      const id=b.dataset.c, c=CHALL.find(x=>x.id===id);
-      if (c && c.check() && !S.owned[`ch_${id}`]) {
-        S.points += c.reward; S.owned[`ch_${id}`]=true; save(); renderChallenges(); updateHUD();
-        toast(`Challenge: +${c.reward} Punkte`);
-      }
-    });
-  });
 }
 
 /* === Shop === */
@@ -230,6 +257,7 @@ function buyUpgrade(id){
 
   save(); renderShopUpgrades(); updateHUD();
   toast(`Upgrade gekauft: ${u.name}`);
+  renderChallenges();      // falls „Erstes Upgrade“-Challenge aktiv ist
 }
 
 function renderShopSetup(){
@@ -259,6 +287,7 @@ function buyItem(id){
   S.points -= it.price; S.owned[id]=true; save();
   renderShopSetup(); renderSetupView(); updateHUD();
   toast(`Item gekauft: ${it.name}`);
+  renderChallenges();      // falls „Erstes Item“-Challenge aktiv ist
 }
 
 /* === Setup-Ansicht === */
