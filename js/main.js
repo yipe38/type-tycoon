@@ -168,26 +168,31 @@ function renderTarget(targetText){
   updateHUD();
 }
 
-function updateHUD(afterScore=false){
+function updateHUD() {
+  // Live-WPM während des Tippens, sonst letzter Satz-WPM
+  let wpmDisplay = 0;
+  const typedCount = el.input.value.length;
+
+  if (startedAt && typedCount > 0) {
+    const elapsed = (performance.now() - startedAt) / 1000;
+    if (elapsed > 0) {
+      wpmDisplay = Math.round((typedCount / 5) / (elapsed / 60)); // 5 chars = 1 Wort
+    }
+  } else {
+    wpmDisplay = lastWpm || 0;
+  }
+
   const total = el.target.querySelectorAll('.ty').length;
   const oks   = el.target.querySelectorAll('.ty.ok').length;
-  const acc = total ? Math.round((oks/total)*100) : 100;
-  const multNow = 1 + Math.min(S.streak*0.05, S.multCap) + synergyBonus();
-  el.wpm.textContent   = `WPM: ${afterScore ? lastWpm : 0}`;
-  el.acc.textContent   = `Accuracy: ${acc}%`;
-  el.streak.textContent= `Serie: ${S.streak}`;
-  el.mult.textContent  = `Multiplikator: ${multNow.toFixed(2)}×`;
-  el.pts.textContent   = `Punkte: ${Math.floor(S.points)}`;
-  el.lvl.textContent   = `Level: ${S.level}`;
-}
+  const acc = total ? Math.round((oks / total) * 100) : 100;
+  const multNow = 1 + Math.min(S.streak * 0.05, S.multCap) + synergyBonus();
 
-function renderStats(){
-  const need = needXP(S.level);
-  el.stats.innerHTML = `
-    <div>Gesamt-Sätze: ${S.stats.total}</div>
-    <div>Beste Serie: ${S.stats.bestStreak}</div>
-    <div>XP: ${S.xp} / ${need}</div>
-  `;
+  el.wpm.textContent    = `WPM: ${wpmDisplay}`;
+  el.acc.textContent    = `Accuracy: ${acc}%`;
+  el.streak.textContent = `Serie: ${S.streak}`;
+  el.mult.textContent   = `Multiplikator: ${multNow.toFixed(2)}×`;
+  el.pts.textContent    = `Punkte: ${Math.floor(S.points)}`;
+  el.lvl.textContent    = `Level: ${S.level}`;
 }
 
 /* === Scoring === */
