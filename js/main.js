@@ -109,7 +109,7 @@ function nextSentence(initial=false){
   current = pickSentence(S.level, S.lastSentenceId);
   S.lastSentenceId = current.id;
   penalty = 0;                                // reset Strafe
-  typedHistory = new Array(current.text.length);
+  typedHistory = new Array(current.text.length).fill(undefined);
   renderTarget(current.text);
   el.input.value = "";
   startedAt = 0;                               // Timer startet erst beim Tippen
@@ -122,6 +122,11 @@ function onInput(){
   if (!startedAt) startedAt = performance.now(); // Start bei erstem Input
 
   const val = el.input.value;
+  // Safety: History-Länge an Ziel anpassen (falls jemals out of sync)
+  if (!current || typedHistory.length !== current.text.length) {
+    typedHistory = new Array(current?.text.length || 0).fill(undefined);
+  }
+
   for (let i=0;i<current.text.length;i++){
     const exp = current.text[i];
     const got = val[i] ?? null;
@@ -138,7 +143,7 @@ function onInput(){
     S.stats.total++;
     if (S.streak > S.stats.bestStreak) S.stats.bestStreak = S.streak;
     renderStats(); save();
-    renderChallenges();           // ⬅️ nach Abschluss refresh
+    renderChallenges();           // nach Abschluss refresh
     nextSentence();
   }
 }
@@ -154,6 +159,10 @@ function deductTick(){
 
 /* === Rendering === */
 function renderTarget(targetText){
+  // Safety: History-Länge korrigieren
+  if (typedHistory.length !== targetText.length) {
+    typedHistory = new Array(targetText.length).fill(undefined);
+  }
   const out = [];
   for (let i=0;i<targetText.length;i++){
     const exp = targetText[i];
@@ -195,6 +204,15 @@ function updateHUD() {
   el.lvl.textContent    = `Level: ${S.level}`;
 }
 
+function renderStats(){
+  const need = needXP(S.level);
+  el.stats.innerHTML = `
+    <div>Gesamt-Sätze: ${S.stats.total}</div>
+    <div>Beste Serie: ${S.stats.bestStreak}</div>
+    <div>XP: ${S.xp} / ${need}</div>
+  `;
+}
+
 /* === Scoring === */
 function scoreSentence(text, elapsedS){
   const chars = [...text].length;
@@ -221,7 +239,7 @@ function scoreSentence(text, elapsedS){
     S.xp -= needXP(S.level);
     S.level++;
   }
-  updateHUD(true);
+  updateHUD(); // zeigt lastWpm nach Abschluss
 }
 
 /* === Shop === */
@@ -262,7 +280,7 @@ function buyUpgrade(id){
 
   save(); renderShopUpgrades(); updateHUD();
   toast(`Upgrade gekauft: ${u.name}`);
-  renderChallenges();      // falls „Erstes Upgrade“-Challenge aktiv ist
+  renderChallenges(); // falls „Erstes Upgrade“-Challenge aktiv ist
 }
 
 function renderShopSetup(){
@@ -292,7 +310,7 @@ function buyItem(id){
   S.points -= it.price; S.owned[id]=true; save();
   renderShopSetup(); renderSetupView(); updateHUD();
   toast(`Item gekauft: ${it.name}`);
-  renderChallenges();      // falls „Erstes Item“-Challenge aktiv ist
+  renderChallenges(); // falls „Erstes Item“-Challenge aktiv ist
 }
 
 /* === Setup-Ansicht === */
